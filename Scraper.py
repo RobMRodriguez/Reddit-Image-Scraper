@@ -6,64 +6,133 @@ import re
 from os import mkdir
 from time import sleep
 
-username = input("What user would you like to download from?\n>>> ")
-
-userurl= "http://www.reddit.com/user/" + username
-page = 0
-images = []
-while True:
-    try:
-        text = urllib.request.urlopen(userurl)
-        sleep(2)
-        code = text.read().decode('utf-8')
-
-        pics = [n.start() for n in re.finditer("i.imgur.com/", code)]
 
 
-        for pic in pics:
-            if code[pic + 22] == "g":
-                if not code[pic:pic + 23] in images:
-                    images.append(code[pic:pic + 23])
+def find_next_url(htmlCode):
+    possibleButtonArray = [o.start() for o in re.finditer(username, htmlCode)]
 
+    startIndex = possibleButtonArray[-1] #The last value is the next button
+
+    terminatingCharacter = chr(34)
+    
+    while htmlCode[startIndex] != terminatingCharacter:       
+        startIndex -= 1
         
+    startIndex += 1 #To remove ' " '  
+    endIndex = startIndex
 
-        nextarray = [o.start() for o in re.finditer("&amp;after", code)] #the last will be the one I want
-        j = nextarray[-1]
-        while code[j] != "\"":
-            j -= 1
-        k = j + 1
-        while code[k] != "\"":
-            k += 1
-        userurl = code[j + 1:k]
-        print(userurl)
-        page += 1
-    except:
-        break
+    while htmlCode[endIndex] != terminatingCharacter:
+        endIndex += 1
 
-i = 0
-while True:
+    return htmlCode[startIndex:endIndex]
+
+def get_album_image_list(url):
+    print("called album")
     try:
-        file = open("C:/Images/" + username + "/createfolder.uff", 'w')
-        file.close
+        htmlCode = get_html_code(url)
     except:
-        try:
-            mkdir("C:/Images/" + username)
-        except:
-            pass
-    try:
-        file = open("C:/Images/" + username + "/" + username + str(i) + ".jpg", 'r')
-        file.close
-    except:
-        break
-    i += 1
-for image in images:
-    picurl = "http://" + str(image)).read()
-    file.write(urllib.request.urlopen(picurl)
-    file = open("C:/Images/" + username + "/" + username + str(i) + ".jpg", 'wb')
-    file.write(urllib.request.urlopen("http://" + str(image)).read())
-    file.close()
-    i += 1
+        return []
+    pics = [n.start() for n in re.finditer("imgur.com/", htmlCode)]
 
-print(images)
-print("Success!")
-sleep(3)
+    imageList = []
+    terminatingCharacter = chr(34)
+
+    for index in pics:
+        end = index
+        while htmlCode[end] != terminatingCharacter:
+            end += 1
+        if not "http://" + htmlCode[index:end] in imageList:
+            imageList.append("http://" + htmlCode[index:end])
+    return imageList
+
+
+def get_image_list(htmlCode):
+    pics = [n.start() for n in re.finditer("imgur.com/", htmlCode)]
+
+    imageList = []
+    terminatingCharacter = chr(34)
+
+    for index in pics:
+        end = index
+        while htmlCode[end] != terminatingCharacter:
+            end += 1
+        if not "http://" + htmlCode[index:end] in imageList:
+            imageList.append("http://" + htmlCode[index:end])
+    print(imageList)
+    for image in imageList:
+        if chr(47) + 'a' + chr(47) in image:
+            newList = get_album_image_list(image)
+            for newImage in newList:
+                if not newImage in imageList:
+                    imageList.append(newImage)
+                imageList.remove(newImage)
+    return imageList
+
+
+
+
+def get_html_code(url):
+    try:
+        websiteDump = urllib.request.urlopen(url)
+    except:
+        return False
+    return websiteDump.read().decode('utf-8')
+
+
+
+
+
+
+
+
+
+
+def main(username):
+    currentUrl= "http://www.reddit.com/user/" + username +"/submitted"
+    imageUrls = []
+
+    try:
+        
+        while True:
+            #this loop gathers all the image urls from the profile
+            htmlCode = get_html_code(currentUrl)
+            if not htmlCode:
+                break
+            
+            canidateImages = get_image_list(htmlCode)
+        
+            for image in canidateImages:
+                if not image in imageUrls:
+                    imageUrls.append(image)
+        
+            currentUrl = find_next_url(htmlCode)
+        
+        
+        imageFileIndex = 0
+        while True:
+            try:
+                file = open("C:/Images/" + username + "/createfolder.uff", 'w')
+                file.close
+            except:
+                try:
+                    mkdir("C:/Images/" + username)
+                except:
+                    pass
+            try:
+                file = open("C:/Images/" + username + "/" + username + str(imageFileIndex) + ".jpg", 'r')
+                file.close
+            except:
+                break
+            imageFileIndex += 1
+        for image in imageUrls:
+            if image[-4] == '.':
+                file = open("C:/Images/" + username + "/" + username + str(imageFileIndex) + image[-4:], 'wb')
+                try:
+                    file.writelines(urllib.request.urlopen(image))
+                    imageFileIndex += 1
+                except:
+                    print("lost an image", image)
+                file.close()
+        
+    except:
+        pass
